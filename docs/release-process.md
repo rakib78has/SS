@@ -29,8 +29,8 @@ changelog and the store listing.
 6. Commit, then tag:
 
    ```bash
-   git tag snapcapture-v0.3.0
-   git push origin snapcapture-v0.3.0
+   git tag v0.3.0
+   git push origin v0.3.0
    ```
 
 The tag must match the manifest version or the workflow stops. That check exists
@@ -39,9 +39,7 @@ publishes something labelled as a version it is not.
 
 ## What the pipeline does
 
-`.github/workflows/snapcapture-release.yml` lives at the **repository root**,
-because this repo holds several projects side by side and GitHub only reads
-workflows from there. Every step is scoped to `ss/`.
+[`.github/workflows/release.yml`](../.github/workflows/release.yml):
 
 1. **verify** — re-runs every quality gate, because a tag can point at a commit
    that never went through a pull request. Checks the tag/manifest match and the
