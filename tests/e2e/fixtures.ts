@@ -36,12 +36,17 @@ export const test = base.extend<ExtensionFixtures>({
     await rm(dir, { recursive: true, force: true });
   },
 
-  context: async ({ downloadsPath }, use) => {
+  // `headless` is Playwright's own option fixture, so `--headed` and
+  // `use: { headless }` reach this launch. Hardcoding it here would silently
+  // ignore both, which is confusing when you are trying to watch a failure.
+  context: async ({ downloadsPath, headless }, use) => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'snapcapture-profile-'));
 
     const context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
-      headless: true, // the new headless mode, which does support extensions
+      // Headless here means the new mode, which does load extensions; the old
+      // one loads none at all.
+      headless,
       downloadsPath,
       args: [
         `--disable-extensions-except=${EXTENSION_PATH}`,
