@@ -9,6 +9,15 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The recording appeared to vanish when you pressed stop.** MediaRecorder
+  writes WebM as a live stream, so the blob carries no duration in its header
+  and no cue index. The preview element reported a duration of `NaN`, exposed
+  no seekable range, and collapsed to "no supported sources" the moment
+  anything scrubbed it — leaving a blank player. The recording itself was
+  always intact; only the preview was unusable. The length is now measured
+  after loading, which restores the scrubber. An empty recording is also
+  reported plainly instead of showing a blank player. (BUG-018)
+
 - **"Recording won't start": the recorder could hang with no explanation.**
   `getDisplayMedia` does not always settle — when the share picker cannot be
   shown, the promise can simply never resolve or reject, so neither the success

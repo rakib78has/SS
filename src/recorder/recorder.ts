@@ -8,6 +8,7 @@ import {
 } from '../core/record/frame-clock.js';
 import { describeStartFailure } from '../core/record/start-errors.js';
 import { waitForVideoDimensions } from '../core/record/video-ready.js';
+import { resolveMediaDuration } from '../core/record/webm-duration.js';
 import { SHARE_PROMPT_TIMEOUT_MS, withTimeout } from '../core/record/with-timeout.js';
 import { downloadBlob } from '../infra/downloads.js';
 import { ANNOTATION_COLORS, STROKE_WIDTH } from '../shared/constants.js';
@@ -344,6 +345,29 @@ function handleRecordingStopped(): void {
   recordToolbar.classList.add('hidden');
   showView(views.result);
   setStatus('');
+
+  if (recordedBlob.size === 0) {
+    setStatus('That recording came out empty. Try again, and keep this tab open while recording.');
+    downloadBtn.disabled = true;
+    return;
+  }
+  downloadBtn.disabled = false;
+
+  // MediaRecorder writes no duration into the WebM header, so the preview
+  // arrives unseekable and breaks as soon as anything scrubs it. Measuring it
+  // here is what keeps the player usable; see resolveMediaDuration().
+  void previewVideo
+    .play()
+    .catch(() => undefined)
+    .then(() => {
+      previewVideo.pause();
+      return resolveMediaDuration(previewVideo);
+    })
+    .then((measured) => {
+      if (!measured) {
+        setStatus('Preview playback may be limited, but the download is complete.');
+      }
+    });
 }
 
 function cancelAndReset(): void {

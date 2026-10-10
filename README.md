@@ -107,6 +107,11 @@ Four, each doing one job, and **no host permissions**:
 - **Recording needs its tab to stay open.** Frames are composited in the
   recorder tab; closing it stops the recording.
 - Recordings export as WebM only.
+- **A downloaded recording may report no duration in some players.** The WebM
+  that `MediaRecorder` produces has no duration in its header. The in-app
+  preview measures it and plays normally; VLC and ffmpeg handle the file fine,
+  but a few players show its length as unknown. Writing the header ourselves
+  would mean adding the project's only runtime dependency.
 
 ## License
 
