@@ -9,6 +9,15 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Using Chrome's "Stop sharing" bar before recording started looked like the
+  recording was thrown away.** Clicking Start Recording only opened the share
+  picker; a second click was still needed to begin recording. Ending the share
+  at that point correctly recorded nothing, but dropped silently back to the
+  idle screen with no explanation, which is indistinguishable from losing a
+  recording. The idle button now says **Choose What to Share**, the selection
+  stage says plainly that nothing is being recorded yet, and a share that ends
+  before recording begins says so. (BUG-019)
+
 - **The recording appeared to vanish when you pressed stop.** MediaRecorder
   writes WebM as a live stream, so the blob carries no duration in its header
   and no cue index. The preview element reported a duration of `NaN`, exposed

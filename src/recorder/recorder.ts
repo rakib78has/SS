@@ -151,8 +151,14 @@ async function startCapture(): Promise<void> {
     await waitForVideoDimensions(sourceVideo);
 
     rawStream.getVideoTracks()[0].addEventListener('ended', () => {
+      // Chrome's own "Stop sharing" bar ends the track. Mid-recording that is
+      // simply a stop. During selection nothing has been recorded yet, and
+      // dropping silently back to the idle view looks like the recording was
+      // thrown away - so say what happened.
       if (phase === 'recording') stopRecording();
-      else if (phase === 'selecting') cancelAndReset();
+      else if (phase === 'selecting') {
+        cancelAndReset('Screen sharing stopped before recording began — nothing was recorded.');
+      }
     });
 
     enterSelectPhase();
@@ -370,7 +376,8 @@ function handleRecordingStopped(): void {
     });
 }
 
-function cancelAndReset(): void {
+/** Returns to the idle view, saying why when the user did not ask for it. */
+function cancelAndReset(reason = ''): void {
   stopClocks();
   teardownStreams();
   phase = 'idle';
@@ -378,6 +385,7 @@ function cancelAndReset(): void {
   recordToolbar.classList.add('hidden');
   startBtn.disabled = false;
   showView(views.idle);
+  setStatus(reason);
 }
 
 function resetToIdle(): void {

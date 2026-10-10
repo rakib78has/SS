@@ -34,7 +34,7 @@ test.describe('extension loading', () => {
     const page = await context.newPage();
     await page.goto(extensionUrl(extensionId, 'recorder/recorder.html'));
 
-    await expect(page.getByRole('button', { name: 'Start Recording' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Choose What to Share' })).toBeVisible();
     await expect(page.locator('#stage-view')).toHaveClass(/hidden/);
     await expect(page.locator('#result-view')).toHaveClass(/hidden/);
 
