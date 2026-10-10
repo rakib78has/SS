@@ -6,6 +6,9 @@ import {
   startFrameClock,
   type FrameClock,
 } from '../core/record/frame-clock.js';
+import { describeStartFailure } from '../core/record/start-errors.js';
+import { waitForVideoDimensions } from '../core/record/video-ready.js';
+import { SHARE_PROMPT_TIMEOUT_MS, withTimeout } from '../core/record/with-timeout.js';
 import { downloadBlob } from '../infra/downloads.js';
 import { ANNOTATION_COLORS, STROKE_WIDTH } from '../shared/constants.js';
 
@@ -111,42 +114,23 @@ for (const { value, label } of ANNOTATION_COLORS) {
 
 // --- Capture setup ---------------------------------------------------------
 
-/** Distinguishes a user cancelling the share picker from a real failure.
- *  Treating every rejection as a cancellation left policy blocks and device
- *  errors completely silent. */
-function describeDisplayMediaError(error: unknown): string | null {
-  if (!(error instanceof DOMException)) {
-    return error instanceof Error ? error.message : 'Could not start screen capture.';
-  }
-  switch (error.name) {
-    case 'NotAllowedError':
-      // Also raised when policy blocks capture, but the user-cancelled case
-      // is by far the common one and needs no message.
-      return error.message.toLowerCase().includes('permission denied by system')
-        ? 'Your system blocked screen recording. Grant Chrome screen-recording permission and try again.'
-        : null;
-    case 'NotFoundError':
-      return 'No screen or window was available to record.';
-    case 'NotReadableError':
-      return 'Another application is using the screen capture device.';
-    case 'AbortError':
-      return null; // picker dismissed
-    default:
-      return `Could not start screen capture (${error.name}).`;
-  }
-}
-
 async function startCapture(): Promise<void> {
   setStatus('');
   startBtn.disabled = true;
 
+  const requestedAt = Date.now();
   try {
-    rawStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: 30 },
-      audio: true,
-    });
+    // Bounded: getDisplayMedia can hang without ever settling when the picker
+    // cannot be shown, which leaves the UI stuck on a disabled button.
+    rawStream = await withTimeout(
+      navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true }),
+      SHARE_PROMPT_TIMEOUT_MS,
+      (late) => late.getTracks().forEach((track) => track.stop())
+    );
   } catch (error) {
-    const message = describeDisplayMediaError(error);
+    // Elapsed time tells a dismissed picker apart from a blocked request; see
+    // describeStartFailure().
+    const message = describeStartFailure(error, Date.now() - requestedAt);
     if (message) setStatus(message);
     startBtn.disabled = false;
     return;
@@ -159,11 +143,11 @@ async function startCapture(): Promise<void> {
     sourceVideo.srcObject = rawStream;
     await sourceVideo.play();
 
-    if (!sourceVideo.videoWidth) {
-      await new Promise<void>((resolve) =>
-        sourceVideo!.addEventListener('loadedmetadata', () => resolve(), { once: true })
-      );
-    }
+    // Bounded, and tolerant of metadata that has already arrived. The previous
+    // unconditional wait on `loadedmetadata` could never resolve once that
+    // event had fired, leaving the recorder stuck on a disabled button with
+    // nothing on screen to explain it.
+    await waitForVideoDimensions(sourceVideo);
 
     rawStream.getVideoTracks()[0].addEventListener('ended', () => {
       if (phase === 'recording') stopRecording();
@@ -173,7 +157,9 @@ async function startCapture(): Promise<void> {
     enterSelectPhase();
   } catch (error) {
     console.error(error);
-    setStatus('Could not read the shared screen.');
+    setStatus(
+      error instanceof Error && error.message ? error.message : 'Could not read the shared screen.'
+    );
     teardownStreams();
     startBtn.disabled = false;
   }

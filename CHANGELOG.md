@@ -9,6 +9,29 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **"Recording won't start": the recorder could hang with no explanation.**
+  `getDisplayMedia` does not always settle — when the share picker cannot be
+  shown, the promise can simply never resolve or reject, so neither the success
+  nor the failure branch ran. The Start Recording button stayed disabled, no
+  view changed, and nothing appeared on screen. Reproduced in a real browser.
+  The request is now bounded, and a stream granted after the timeout is
+  released rather than leaving the browser believing a capture is live.
+  (BUG-017)
+- **A second hang on the same path.** After `play()` resolved, the code waited
+  unconditionally for `loadedmetadata`. That event has normally already fired
+  by then, so the listener never ran and the recorder hung in the same visible
+  way. It now checks the current state first, also accepts `resize` — which is
+  what a stream fires when its dimensions become known — and fails loudly on a
+  timeout instead of waiting forever. (BUG-016)
+- **Screen-capture denials were still silent.** The earlier fix only recognised
+  an OS-level block when Chrome's message happened to say "permission denied by
+  system", which it often does not. Denials are now identified by how quickly
+  the request came back — a dismissed picker takes a person a moment, a blocked
+  request rejects immediately — as well as by policy and system wording.
+  (BUG-006 follow-up)
+
+### Fixed
+
 - **Full-page capture could still produce blank bands, by a second route.** The
   stitcher positioned slices using `window.devicePixelRatio`, but the frames
   `captureVisibleTab` actually returns do not always have that scale — headless
