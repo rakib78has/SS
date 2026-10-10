@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { planFullPageCapture, type PageMetrics } from '../../src/core/capture/full-page-plan.js';
+import {
+  captureScale,
+  planFullPageCapture,
+  type PageMetrics,
+} from '../../src/core/capture/full-page-plan.js';
 import { MAX_CANVAS_DIMENSION, MAX_SLICES } from '../../src/shared/constants.js';
 
 function metrics(overrides: Partial<PageMetrics> = {}): PageMetrics {
@@ -145,5 +149,54 @@ describe('planFullPageCapture', () => {
         expect(position).toBeLessThanOrEqual(scrollHeight - viewportHeight);
       }
     });
+  });
+});
+
+// --- BUG-015 regression ------------------------------------------------------
+// The stitcher positioned slices using window.devicePixelRatio. When the frames
+// captureVisibleTab actually returns have a different scale — headless and
+// remote-debugging contexts, some fractional-scaling setups, Chrome's own
+// capture-size limits — slices were spaced further apart than they are tall,
+// leaving unpainted bands. Found by the manual-QA harness at dpr 2, where
+// captureVisibleTab returned 1x frames while the page reported 2.
+describe('captureScale (BUG-015)', () => {
+  it('derives the scale from the captured frame, not the reported ratio', () => {
+    // Page claims 2x; the frame is actually 1x.
+    expect(captureScale(800, 800, 2)).toBe(1);
+  });
+
+  it('agrees with the reported ratio when they match', () => {
+    expect(captureScale(1600, 800, 2)).toBe(2);
+    expect(captureScale(800, 800, 1)).toBe(1);
+  });
+
+  it('handles a fractional scale', () => {
+    expect(captureScale(1200, 800, 1.5)).toBe(1.5);
+  });
+
+  it.each([
+    ['zero bitmap width', 0, 800],
+    ['negative bitmap width', -100, 800],
+    ['NaN bitmap width', Number.NaN, 800],
+    ['zero viewport width', 800, 0],
+    ['NaN viewport width', 800, Number.NaN],
+  ])('falls back to the reported ratio for %s', (_label, bitmapWidth, viewportWidth) => {
+    expect(captureScale(bitmapWidth, viewportWidth, 2)).toBe(2);
+  });
+
+  it('keeps the stitched canvas consistent with the frames it holds', () => {
+    // A 3600px page, 600px viewport, frames that are genuinely 1x.
+    const plan = planFullPageCapture(metrics({ scrollHeight: 3600, viewportHeight: 600 }));
+    const scale = captureScale(800, 800, 2); // page lies about being 2x
+
+    const canvasHeight = Math.round(plan.capturedHeight * scale);
+    const lastSliceBottom = plan.positions[plan.positions.length - 1] * scale + 600 * scale;
+
+    // Every row of the canvas is covered by some slice.
+    expect(lastSliceBottom).toBeGreaterThanOrEqual(canvasHeight);
+    for (let i = 1; i < plan.positions.length; i++) {
+      const gap = (plan.positions[i] - plan.positions[i - 1]) * scale;
+      expect(gap).toBeLessThanOrEqual(600 * scale); // never exceeds a frame's height
+    }
   });
 });

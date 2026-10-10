@@ -71,6 +71,19 @@ IndexedDB handoff store and opening the editor against it. That exercises image
 decode, every annotation tool, undo depth, crop, and all three export formats in
 a real browser.
 
+**HiDPI capture (M-19) cannot be verified in automation either.** Headless
+Chromium's `captureVisibleTab` returns 1x frames regardless of
+`deviceScaleFactor`, verified at dpr 1, 2 and 3 — so the pipeline never produces
+a HiDPI capture there to assert on. It needs a real HiDPI display.
+
+**Recording while the tab is hidden (M-41) cannot be reproduced.** Playwright
+opens pages as separate windows, so `document.visibilityState` stays `visible`
+however the pages are ordered; the condition BUG-004 is about never occurs. What
+*can* be checked automatically is the mechanism the fix relies on —
+`requestVideoFrameCallback` delivering ~30 frames/second — and that the recorder
+completes a full start/stop cycle and produces a video. The hidden-tab case
+itself still needs a person.
+
 **Download filenames are also not assertable.** When `downloadsPath` is set,
 Playwright intercepts downloads over CDP and stores each under a GUID, so
 neither the name passed to `chrome.downloads.download` nor `suggestedFilename()`
@@ -93,6 +106,7 @@ tagged in-file so the reason survives:
 | BUG-007 | Unvalidated rect reached canvas sizing | [messages.test.ts](../tests/unit/messages.test.ts), [geometry.test.ts](../tests/unit/geometry.test.ts) |
 | BUG-008 | Colour swatches had no accessible name | [editor.spec.ts](../tests/e2e/editor.spec.ts) |
 | BUG-012 | No keyboard undo/redo | [editor.spec.ts](../tests/e2e/editor.spec.ts) |
+| BUG-015 | Stitcher trusted `devicePixelRatio` instead of measuring the captured frame | [full-page-plan.test.ts](../tests/unit/full-page-plan.test.ts) |
 | BUG-013 | Slow storage read overwrote the user's format choice | [editor.spec.ts](../tests/e2e/editor.spec.ts) |
 
 When fixing a defect: reproduce it, find the root cause, **write the failing

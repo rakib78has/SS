@@ -7,6 +7,19 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Full-page capture could still produce blank bands, by a second route.** The
+  stitcher positioned slices using `window.devicePixelRatio`, but the frames
+  `captureVisibleTab` actually returns do not always have that scale — headless
+  and remote-debugging contexts, some fractional-scaling setups, and Chrome's
+  own capture-size limits can all return a differently scaled frame. Slices were
+  then spaced further apart than they are tall, leaving rows that were never
+  painted: the same corruption BUG-003 addressed, arriving another way. The
+  scale is now measured from the captured frame instead of taken on trust.
+  Found by the manual-QA harness at dpr 2, where `captureVisibleTab` returned
+  1x frames while the page reported 2. (BUG-015)
+
 ## [0.2.0]
 
 Rebuilt on TypeScript with a tested core. No change to the permission set, and

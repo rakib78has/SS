@@ -1,6 +1,10 @@
-import { planFullPageCapture, type CapturePlan } from '../core/capture/full-page-plan.js';
+import {
+  captureScale,
+  planFullPageCapture,
+  type CapturePlan,
+} from '../core/capture/full-page-plan.js';
 import { toSourcePixelRect } from '../core/capture/geometry.js';
-import { MIN_CAPTURE_GAP_MS, SETTLE_DELAY_MS } from '../shared/constants.js';
+import { MAX_CANVAS_DIMENSION, MIN_CAPTURE_GAP_MS, SETTLE_DELAY_MS } from '../shared/constants.js';
 import type { Rect } from '../shared/messages.js';
 import { execInPage, sleep } from '../infra/tabs.js';
 import {
@@ -107,7 +111,13 @@ export async function captureFullPage(
     }
 
     return {
-      dataUrl: await stitch(bitmaps, plan, metrics.devicePixelRatio),
+      // Measured from the frames themselves, not taken on trust from the
+      // page: see captureScale().
+      dataUrl: await stitch(
+        bitmaps,
+        plan,
+        captureScale(bitmaps[0].bitmap.width, metrics.viewportWidth, metrics.devicePixelRatio)
+      ),
       truncated: plan.truncated,
     };
   } finally {
@@ -150,15 +160,17 @@ async function restore(
 async function stitch(
   bitmaps: Array<{ bitmap: ImageBitmap; y: number }>,
   plan: CapturePlan,
-  dpr: number
+  scale: number
 ): Promise<string> {
   const width = bitmaps[0].bitmap.width;
-  const canvas = new OffscreenCanvas(width, plan.canvasHeight);
+  const height = Math.min(MAX_CANVAS_DIMENSION, Math.round(plan.capturedHeight * scale));
+
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not create a drawing surface for the stitched image.');
 
   for (const { bitmap, y } of bitmaps) {
-    ctx.drawImage(bitmap, 0, Math.round(y * dpr));
+    ctx.drawImage(bitmap, 0, Math.round(y * scale));
   }
 
   return blobToDataUrl(await canvas.convertToBlob({ type: 'image/png' }));

@@ -78,3 +78,27 @@ export function planFullPageCapture(metrics: PageMetrics): CapturePlan {
     truncated,
   };
 }
+
+/**
+ * Derives the capture scale from an actual captured frame rather than trusting
+ * `window.devicePixelRatio`.
+ *
+ * The two usually agree — on a real HiDPI display `captureVisibleTab` returns
+ * device-pixel images. They do not always: headless and remote-debugging
+ * contexts, some fractional-scaling setups, and Chrome's own limits on capture
+ * size can all return a frame whose scale differs from what the page reports.
+ *
+ * Positioning slices by a scale the frames do not actually have spaces them
+ * further apart than they are tall, leaving bands that are never painted — the
+ * same corruption `planFullPageCapture` avoids, arriving by another route.
+ * Measuring the frame removes the assumption entirely.
+ */
+export function captureScale(
+  bitmapWidth: number,
+  viewportWidth: number,
+  reportedDpr: number
+): number {
+  if (!Number.isFinite(bitmapWidth) || bitmapWidth <= 0) return reportedDpr;
+  if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) return reportedDpr;
+  return bitmapWidth / viewportWidth;
+}
